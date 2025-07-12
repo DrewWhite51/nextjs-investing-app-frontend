@@ -1,16 +1,18 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model article_summaries {
-  id                      Int             @id @default(autoincrement())
-  source_file             String          @unique(map: "sqlite_autoindex_article_summaries_1")
-  processed_at            String          @default("datetime('now')")
+  id                      BigInt          @id @default(autoincrement())
+  source_file             String          @unique
+  source_url              String?
+  processed_at            DateTime        @default(now()) @db.Timestamp(6)
   model_used              String
   raw_response            String
   summary                 String?
@@ -22,27 +24,26 @@ model article_summaries {
   risk_factors            String?
   opportunities           String?
   time_horizon            String?
-  confidence_score        Float?
-  created_at              String          @default("datetime('now')")
+  confidence_score        Float?          @db.Real
+  created_at              DateTime        @default(now()) @db.Timestamp(6)
   pipeline_run_id         String?
-  url_id                  Int?
-  source_url              String?
-  collected_urls          collected_urls? @relation(fields: [url_id], references: [id], onUpdate: NoAction)
+  url_id                  BigInt?
   pipeline_runs           pipeline_runs?  @relation(fields: [pipeline_run_id], references: [run_id], onUpdate: NoAction)
+  collected_urls          collected_urls? @relation(fields: [url_id], references: [id], onUpdate: NoAction)
 
-  @@index([source_url], map: "idx_article_summaries_url")
   @@index([confidence_score], map: "idx_article_summaries_confidence")
   @@index([pipeline_run_id], map: "idx_article_summaries_pipeline_run")
-  @@index([sentiment], map: "idx_article_summaries_sentiment")
   @@index([processed_at], map: "idx_article_summaries_processed_at")
+  @@index([sentiment], map: "idx_article_summaries_sentiment")
+  @@index([source_url], map: "idx_article_summaries_url")
 }
 
 model collected_urls {
-  id                  Int                 @id @default(autoincrement())
-  source_id           Int
+  id                  BigInt              @id @default(autoincrement())
+  source_id           BigInt
   url                 String
   domain              String
-  collected_at        String              @default("datetime('now')")
+  collected_at        DateTime            @default(now()) @db.Timestamp(6)
   collection_batch_id String
   used_in_pipeline    Boolean             @default(false)
   pipeline_run_id     String?
@@ -50,16 +51,16 @@ model collected_urls {
   collection_batches  collection_batches  @relation(fields: [collection_batch_id], references: [batch_id], onDelete: Cascade, onUpdate: NoAction)
   news_sources        news_sources        @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([url, collection_batch_id], map: "sqlite_autoindex_collected_urls_1")
-  @@index([domain], map: "idx_collected_urls_domain")
+  @@unique([url, collection_batch_id])
   @@index([collection_batch_id], map: "idx_collected_urls_batch_id")
+  @@index([domain], map: "idx_collected_urls_domain")
   @@index([source_id], map: "idx_collected_urls_source_id")
 }
 
 model collection_batches {
-  id             Int              @id @default(autoincrement())
-  batch_id       String           @unique(map: "sqlite_autoindex_collection_batches_1")
-  created_at     String           @default("datetime('now')")
+  id             BigInt           @id @default(autoincrement())
+  batch_id       String           @unique
+  created_at     DateTime         @default(now()) @db.Timestamp(6)
   total_urls     Int              @default(0)
   sources_count  Int              @default(0)
   use_selenium   Boolean          @default(false)
@@ -69,26 +70,26 @@ model collection_batches {
 }
 
 model news_sources {
-  id                 Int              @id @default(autoincrement())
-  name               String           @unique(map: "sqlite_autoindex_news_sources_1")
-  url                String           @unique(map: "sqlite_autoindex_news_sources_2")
+  id                 BigInt           @id @default(autoincrement())
+  name               String           @unique
+  url                String           @unique
   category           String           @default("General")
   description        String?          @default("")
   active             Boolean          @default(true)
-  added_at           String           @default("datetime('now')")
-  last_collected     String?
+  added_at           DateTime         @default(now()) @db.Timestamp(6)
+  last_collected     DateTime?        @db.Timestamp(6)
   collection_count   Int              @default(0)
-  avg_articles_found Float            @default(0.0)
+  avg_articles_found Float            @default(0.0) @db.Real
   collected_urls     collected_urls[]
 
   @@index([active], map: "idx_news_sources_active")
 }
 
 model pipeline_runs {
-  id                  Int                 @id @default(autoincrement())
-  run_id              String              @unique(map: "sqlite_autoindex_pipeline_runs_1")
-  started_at          String              @default("datetime('now')")
-  completed_at        String?
+  id                  BigInt              @id @default(autoincrement())
+  run_id              String              @unique
+  started_at          DateTime            @default(now()) @db.Timestamp(6)
+  completed_at        DateTime?           @db.Timestamp(6)
   status              String              @default("running")
   urls_processed      Int                 @default(0)
   summaries_generated Int                 @default(0)

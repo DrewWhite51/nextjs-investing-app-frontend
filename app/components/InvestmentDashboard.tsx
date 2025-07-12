@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import NewsCard from './NewsCard' // Adjust the import path as needed
 
 // TypeScript interfaces
@@ -23,7 +23,11 @@ interface Summary {
   model_used: string
   parsed_summary: ParsedSummary
   processed_datetime: Date | null
+  original_url?: string
+  article_domain?: string
+  url_collected_at?: string
 }
+
 
 interface Stats {
   total_summaries: number
@@ -53,7 +57,7 @@ interface ApiResponse {
 
 const ITEMS_PER_PAGE = 9
 
-export default function InvestmentDashboard(): JSX.Element {
+export default function InvestmentDashboard(): React.JSX.Element {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [currentPage, setCurrentPage] = useState<number>(1)

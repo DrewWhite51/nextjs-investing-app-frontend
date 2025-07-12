@@ -33,6 +33,10 @@ interface Summary {
   model_used: string
   parsed_summary: ParsedSummary
   processed_datetime: Date | null
+  original_url?: string
+  article_title?: string
+  collected_at?: string
+article_domain?: string
 }
 
 interface NewsCardProps {
@@ -151,6 +155,31 @@ const NewsCard: React.FC<NewsCardProps> = ({ summary }) => {
             </span>
           </div>
         )}
+
+        {/* Model and URL Info */}
+        <div className="space-y-2 mb-4">
+          {summary.model_used && (
+            <div className="inline-flex items-center gap-2 text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+              <span>🤖</span>
+              <span className="font-medium">{summary.model_used}</span>
+            </div>
+          )}
+          
+          {summary.original_url && (
+            <div className="flex items-start gap-2">
+              <span className="text-blue-500 text-sm">🔗</span>
+              <a 
+                href={summary.original_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-xs underline break-all leading-relaxed"
+                title={summary.original_url}
+              >
+                {summary.article_domain || new URL(summary.original_url).hostname}
+              </a>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Card Content */}

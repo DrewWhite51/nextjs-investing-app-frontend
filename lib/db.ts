@@ -1,20 +1,44 @@
-import { PrismaClient } from '../lib/generated/prisma'
+import { PrismaClient } from './generated/prisma'  // Note: relative path from lib/db.ts
 
-// Prevent multiple instances of Prisma Client in development
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+
+// Global type declaration for Prisma
+declare global {
+  var __prisma: PrismaClient | undefined
 }
 
-export const db = globalForPrisma.prisma || new PrismaClient()
+// Create a single instance with production-optimized configuration
+export const db = globalThis.__prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  
+  // Production optimization for serverless
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  },
+  
+  // Connection management for serverless
+  // __internal configuration removed because it's not supported in PrismaClient options
+})
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+// Only cache in development to prevent memory leaks
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.__prisma = db
+}
+
+// Graceful cleanup
+if (typeof window === 'undefined') {
+  process.on('beforeExit', async () => {
+    await db.$disconnect()
+  })
+}
 
 // Database utility functions
 export const dbUtils = {
   // Test database connection
   async testConnection() {
     try {
-      await db.$connect()
+      await db.$queryRaw`SELECT 1`
       console.log('✅ Database connected successfully')
       return true
     } catch (error) {
@@ -25,13 +49,16 @@ export const dbUtils = {
 
   // Gracefully disconnect
   async disconnect() {
-    await db.$disconnect()
+    try {
+      await db.$disconnect()
+    } catch (error) {
+      console.error('Error disconnecting from database:', error)
+    }
   },
 
   // Get database info
   async getInfo() {
     try {
-      // Updated for PostgreSQL
       const result = await db.$queryRaw`SELECT version() as version`
       return (result as Array<{ version: string }>)[0]
     } catch (error) {
@@ -46,7 +73,7 @@ export const dbUtils = {
       throw new Error('Cannot reset database in production')
     }
     try {
-      // Use correct snake_case model names
+      // Delete in correct order due to foreign key constraints
       await db.article_summaries.deleteMany()
       await db.collected_urls.deleteMany()
       await db.collection_batches.deleteMany()
@@ -102,38 +129,53 @@ export const dbUtils = {
 
   // Additional utility functions for your investment app
   async getLatestSummaries(limit: number = 10) {
-    return db.article_summaries.findMany({
-      take: limit,
-      orderBy: { processed_at: 'desc' },
-      include: {
-        collected_urls: {
-          include: {
-            news_sources: true
+    try {
+      return await db.article_summaries.findMany({
+        take: limit,
+        orderBy: { processed_at: 'desc' },
+        include: {
+          collected_urls: {
+            include: {
+              news_sources: true
+            }
           }
         }
-      }
-    })
+      })
+    } catch (error) {
+      console.error('Error fetching latest summaries:', error)
+      throw error
+    }
   },
 
   async getSummariesBySentiment(sentiment: string) {
-    return db.article_summaries.findMany({
-      where: { sentiment },
-      orderBy: { processed_at: 'desc' },
-      include: {
-        collected_urls: {
-          include: {
-            news_sources: true
+    try {
+      return await db.article_summaries.findMany({
+        where: { sentiment },
+        orderBy: { processed_at: 'desc' },
+        include: {
+          collected_urls: {
+            include: {
+              news_sources: true
+            }
           }
         }
-      }
-    })
+      })
+    } catch (error) {
+      console.error('Error fetching summaries by sentiment:', error)
+      throw error
+    }
   },
 
   async getActiveSources() {
-    return db.news_sources.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' }
-    })
+    try {
+      return await db.news_sources.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' }
+      })
+    } catch (error) {
+      console.error('Error fetching active sources:', error)
+      throw error
+    }
   },
 
   // Helper function to safely convert BigInt to number
@@ -150,46 +192,61 @@ export const dbUtils = {
 
   // Additional useful queries for your investment app
   async getSummariesByConfidenceScore(minScore: number = 0.7) {
-    return db.article_summaries.findMany({
-      where: {
-        confidence_score: {
-          gte: minScore
-        }
-      },
-      orderBy: { confidence_score: 'desc' },
-      include: {
-        collected_urls: {
-          include: {
-            news_sources: true
+    try {
+      return await db.article_summaries.findMany({
+        where: {
+          confidence_score: {
+            gte: minScore
+          }
+        },
+        orderBy: { confidence_score: 'desc' },
+        include: {
+          collected_urls: {
+            include: {
+              news_sources: true
+            }
           }
         }
-      }
-    })
+      })
+    } catch (error) {
+      console.error('Error fetching summaries by confidence score:', error)
+      throw error
+    }
   },
 
   async getRecentCollectedUrls(limit: number = 50) {
-    return db.collected_urls.findMany({
-      take: limit,
-      orderBy: { collected_at: 'desc' },
-      include: {
-        news_sources: true,
-        collection_batches: true
-      }
-    })
+    try {
+      return await db.collected_urls.findMany({
+        take: limit,
+        orderBy: { collected_at: 'desc' },
+        include: {
+          news_sources: true,
+          collection_batches: true
+        }
+      })
+    } catch (error) {
+      console.error('Error fetching recent collected URLs:', error)
+      throw error
+    }
   },
 
   async getCompletedBatches(limit: number = 20) {
-    return db.collection_batches.findMany({
-      where: { completed: true },
-      take: limit,
-      orderBy: { created_at: 'desc' },
-      include: {
-        collected_urls: {
-          include: {
-            news_sources: true
+    try {
+      return await db.collection_batches.findMany({
+        where: { completed: true },
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: {
+          collected_urls: {
+            include: {
+              news_sources: true
+            }
           }
         }
-      }
-    })
+      })
+    } catch (error) {
+      console.error('Error fetching completed batches:', error)
+      throw error
+    }
   }
 }

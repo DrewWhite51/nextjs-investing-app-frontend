@@ -7,6 +7,7 @@ export async function GET(request) {
     const sentiment = searchParams.get('sentiment')
     const timeHorizon = searchParams.get('timeHorizon')
     const search = searchParams.get('search')
+    console.log('DATABASE_URL in production:', process.env.DATABASE_URL?.substring(0, 80) + '...')
 
     // Use Prisma ORM instead of raw queries
     const summaries = await db.article_summaries.findMany({

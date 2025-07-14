@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, TrendingDown, BarChart3, Activity, Search, Calendar } from 'lucide-react';
-import dynamic from 'next/dynamic';
+import { TrendingUp, TrendingDown, BarChart3, Activity, Search, Calendar, DollarSign, Building } from 'lucide-react';
 
-// Dynamically import ApexCharts to avoid SSR issues
-const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+// Import your component files
+import { FinancialMetrics } from './FinancialMetrics';
+import { CompanyProfile } from './CompanyProfile';
+import { AnalystRecommendations } from './AnalystRecommendations';
+import { ApexCandlestickChart } from './ApexCandlestickChart';
 
 // Interfaces
 interface ChartDataItem {
@@ -28,170 +30,31 @@ interface StockData {
   regularMarketVolume?: number;
   fiftyTwoWeekHigh?: number;
   fiftyTwoWeekLow?: number;
+  trailingPE?: number;
+  dividendYield?: number;
+  currency?: string;
+  marketState?: string;
+  averageVolume?: number;
 }
 
 interface StockApiResponse {
   stock: StockData | null;
   chartData: ChartDataItem[];
+  companyInfo: any;
 }
-
-interface ApexCandlestickData {
-  x: number;
-  y: [number, number, number, number];
-}
-
-// ApexCharts Candlestick Component
-const ApexCandlestickChart: React.FC<{ data: ChartDataItem[] }> = ({ data }) => {
-  if (!data || data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-400">
-        No data available
-      </div>
-    );
-  }
-
-  // Transform data for ApexCharts candlestick format
-  const transformedData: ApexCandlestickData[] = data.map((item: ChartDataItem) => ({
-    x: new Date(item.date).getTime(),
-    y: [
-      parseFloat(String(item.open)) || 0,
-      parseFloat(String(item.high)) || 0,
-      parseFloat(String(item.low)) || 0,
-      parseFloat(String(item.close)) || 0
-    ]
-  }));
-
-  const chartOptions = {
-    chart: {
-      type: 'candlestick' as const,
-      height: 350,
-      background: 'transparent',
-      toolbar: {
-        show: true,
-        tools: {
-          download: true,
-          selection: true,
-          zoom: true,
-          zoomin: true,
-          zoomout: true,
-          pan: true,
-          reset: true,
-        }
-      },
-      animations: {
-        enabled: true,
-        easing: 'easeinout' as const,
-        speed: 800,
-      }
-    },
-    theme: {
-      mode: 'dark' as const
-    },
-    title: {
-      text: 'Stock Price Chart',
-      align: 'left' as const,
-      style: {
-        color: '#f9fafb',
-        fontSize: '16px',
-        fontWeight: 600
-      }
-    },
-    xaxis: {
-      type: 'datetime' as const,
-      labels: {
-        style: {
-          colors: '#9ca3af'
-        },
-        format: 'MMM dd'
-      },
-      axisBorder: {
-        color: '#374151'
-      },
-      axisTicks: {
-        color: '#374151'
-      }
-    },
-    yaxis: {
-      tooltip: {
-        enabled: true
-      },
-      labels: {
-        style: {
-          colors: '#9ca3af'
-        },
-        formatter: (value: number) => {
-          return '$' + value.toFixed(2);
-        }
-      }
-    },
-    grid: {
-      borderColor: '#374151',
-      strokeDashArray: 3
-    },
-    plotOptions: {
-      candlestick: {
-        colors: {
-          upward: '#10b981',
-          downward: '#ef4444'
-        },
-        wick: {
-          useFillColor: true
-        }
-      }
-    },
-    tooltip: {
-      theme: 'dark' as const,
-      style: {
-        fontSize: '12px',
-        backgroundColor: '#1f2937'
-      },
-      custom: ({ seriesIndex, dataPointIndex, w }: any) => {
-        const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
-        const date = new Date(data.x).toLocaleDateString();
-        const [open, high, low, close] = data.y;
-        
-        return `
-          <div style="padding: 10px; background: #1f2937; border: 1px solid #374151; border-radius: 8px;">
-            <div style="color: #f9fafb; font-weight: bold; margin-bottom: 5px;">${date}</div>
-            <div style="color: #9ca3af;">
-              <div>Open: <span style="color: #f9fafb;">$${open.toFixed(2)}</span></div>
-              <div>High: <span style="color: #10b981;">$${high.toFixed(2)}</span></div>
-              <div>Low: <span style="color: #ef4444;">$${low.toFixed(2)}</span></div>
-              <div>Close: <span style="color: #f9fafb;">$${close.toFixed(2)}</span></div>
-            </div>
-          </div>
-        `;
-      }
-    }
-  };
-
-  const series = [{
-    name: 'Stock Price',
-    data: transformedData
-  }];
-
-  return (
-    <div className="w-full h-full">
-      <ReactApexChart 
-        options={chartOptions}
-        series={series} 
-        type="candlestick" 
-        height={350} 
-      />
-    </div>
-  );
-};
 
 // Main Stock Dashboard Component
 const StockDashboard: React.FC = () => {
   const [stockData, setStockData] = useState<StockData | null>(null);
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
+  const [companyInfo, setCompanyInfo] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [symbol, setSymbol] = useState<string>('AAPL');
   const [inputSymbol, setInputSymbol] = useState<string>('AAPL');
   const [chartType, setChartType] = useState<'line' | 'candlestick'>('line');
   const [period, setPeriod] = useState<string>('1mo');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'company'>('overview');
 
   // Fetch stock data
   const fetchStockData = async (stockSymbol: string, timePeriod: string = '1mo'): Promise<void> => {
@@ -214,11 +77,13 @@ const StockDashboard: React.FC = () => {
       
       setStockData(data.stock || null);
       setChartData(Array.isArray(data.chartData) ? data.chartData : []);
+      setCompanyInfo(data.companyInfo || null);
     } catch (err: any) {
       console.error('Error fetching stock data:', err);
       setError(err.message || 'An unexpected error occurred');
       setStockData(null);
       setChartData([]);
+      setCompanyInfo(null);
     } finally {
       setLoading(false);
     }
@@ -270,11 +135,6 @@ const StockDashboard: React.FC = () => {
     if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
     if (num >= 1e3) return `${(num / 1e3).toFixed(2)}K`;
     return num.toLocaleString();
-  };
-
-  // Safe value getter
-  const safeValue = <T,>(value: T | null | undefined, fallback: T = 'N/A' as any): T => {
-    return value !== null && value !== undefined && !isNaN(value as any) ? value : fallback;
   };
 
   const safePriceFormat = (value: number | undefined): string => {
@@ -336,6 +196,40 @@ const StockDashboard: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'overview'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('financials')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'financials'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+            >
+              Financials
+            </button>
+            <button
+              onClick={() => setActiveTab('company')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'company'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+            >
+              Company
+            </button>
+          </div>
         </div>
 
         {/* Error Message */}
@@ -358,6 +252,9 @@ const StockDashboard: React.FC = () => {
               <div>
                 <h2 className="text-2xl font-bold">{stockData.shortName || stockData.symbol || 'Unknown'}</h2>
                 <p className="text-gray-400 text-sm">{stockData.symbol || 'N/A'}</p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Market {stockData.marketState || 'Status Unknown'} • {stockData.currency || 'USD'}
+                </p>
               </div>
               <div className="mt-4 md:mt-0 text-right">
                 <div className="text-3xl font-bold">
@@ -380,7 +277,7 @@ const StockDashboard: React.FC = () => {
             </div>
             
             {/* Key Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
               <div>
                 <p className="text-gray-400">Market Cap</p>
                 <p className="font-semibold">{formatNumber(stockData.marketCap)}</p>
@@ -389,6 +286,21 @@ const StockDashboard: React.FC = () => {
                 <p className="text-gray-400">Volume</p>
                 <p className="font-semibold">{formatVolume(stockData.regularMarketVolume)}</p>
               </div>
+              <div>
+                <p className="text-gray-400">Avg Volume</p>
+                <p className="font-semibold">{formatVolume(stockData.averageVolume)}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">P/E Ratio</p>
+                <p className="font-semibold">{stockData.trailingPE ? stockData.trailingPE.toFixed(2) : 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Dividend Yield</p>
+                <p className="font-semibold">{stockData.dividendYield ? (stockData.dividendYield * 100).toFixed(2) + '%' : 'N/A'}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm mt-4">
               <div>
                 <p className="text-gray-400">52W High</p>
                 <p className="font-semibold">${safePriceFormat(stockData.fiftyTwoWeekHigh)}</p>
@@ -401,137 +313,157 @@ const StockDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Chart Section */}
-        {chartData && chartData.length > 0 && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            {/* Chart Type Toggle */}
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold">Price Chart</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setChartType('line')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    chartType === 'line' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                  }`}
-                >
-                  <Activity className="w-4 h-4" />
-                  Line Chart
-                </button>
-                <button
-                  onClick={() => setChartType('candlestick')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    chartType === 'candlestick' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Candlestick
-                </button>
+        {/* Content based on active tab */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Chart Section */}
+            {chartData && chartData.length > 0 && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-6">
+                {/* Chart Type Toggle */}
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold">Price Chart</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setChartType('line')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                        chartType === 'line' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                    >
+                      <Activity className="w-4 h-4" />
+                      Line Chart
+                    </button>
+                    <button
+                      onClick={() => setChartType('candlestick')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                        chartType === 'candlestick' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                      Candlestick
+                    </button>
+                  </div>
+                </div>
+
+                {/* Chart Container */}
+                <div className="h-96">
+                  {chartType === 'line' ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#9ca3af"
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value) => {
+                            try {
+                              return new Date(value).toLocaleDateString();
+                            } catch {
+                              return value;
+                            }
+                          }}
+                        />
+                        <YAxis 
+                          stroke="#9ca3af"
+                          tick={{ fontSize: 12 }}
+                          domain={['dataMin - 5', 'dataMax + 5']}
+                          tickFormatter={(value) => `$${Number(value || 0).toFixed(2)}`}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1f2937',
+                            border: '1px solid #374151',
+                            borderRadius: '8px',
+                            color: '#f9fafb'
+                          }}
+                          formatter={(value) => [`$${Number(value || 0).toFixed(2)}`, 'Close Price']}
+                          labelFormatter={(label) => {
+                            try {
+                              return new Date(label).toLocaleDateString();
+                            } catch {
+                              return label;
+                            }
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="close" 
+                          stroke="#3b82f6" 
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 4, fill: '#3b82f6' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ApexCandlestickChart data={chartData} />
+                  )}
+                </div>
+
+                {/* Volume Chart */}
+                <div className="mt-6 h-32">
+                  <h4 className="text-lg font-medium mb-3">Volume</h4>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#9ca3af"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) => {
+                          try {
+                            return new Date(value).toLocaleDateString();
+                          } catch {
+                            return value;
+                          }
+                        }}
+                      />
+                      <YAxis 
+                        stroke="#9ca3af"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) => formatVolume(value)}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1f2937',
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#f9fafb'
+                        }}
+                        formatter={(value) => [formatVolume(Number(value)), 'Volume']}
+                        labelFormatter={(label) => {
+                          try {
+                            return new Date(label).toLocaleDateString();
+                          } catch {
+                            return label;
+                          }
+                        }}
+                      />
+                      <Bar dataKey="volume" fill="#6b7280" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Chart Container */}
-            <div className="h-96">
-              {chartType === 'line' ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#9ca3af"
-                      tick={{ fontSize: 12 }}
-                      tickFormatter={(value) => {
-                        try {
-                          return new Date(value).toLocaleDateString();
-                        } catch {
-                          return value;
-                        }
-                      }}
-                    />
-                    <YAxis 
-                      stroke="#9ca3af"
-                      tick={{ fontSize: 12 }}
-                      domain={['dataMin - 5', 'dataMax + 5']}
-                      tickFormatter={(value) => `$${Number(value || 0).toFixed(2)}`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1f2937',
-                        border: '1px solid #374151',
-                        borderRadius: '8px',
-                        color: '#f9fafb'
-                      }}
-                      formatter={(value) => [`$${Number(value || 0).toFixed(2)}`, 'Close Price']}
-                      labelFormatter={(label) => {
-                        try {
-                          return new Date(label).toLocaleDateString();
-                        } catch {
-                          return label;
-                        }
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="close" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, fill: '#3b82f6' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <ApexCandlestickChart data={chartData} />
-              )}
-            </div>
+            {/* Analyst Recommendations */}
+            {companyInfo?.financialData && (
+              <AnalystRecommendations financialData={companyInfo.financialData} />
+            )}
+          </>
+        )}
 
-            {/* Volume Chart */}
-            <div className="mt-6 h-32">
-              <h4 className="text-lg font-medium mb-3">Volume</h4>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#9ca3af"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => {
-                      try {
-                        return new Date(value).toLocaleDateString();
-                      } catch {
-                        return value;
-                      }
-                    }}
-                  />
-                  <YAxis 
-                    stroke="#9ca3af"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => formatVolume(value)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#f9fafb'
-                    }}
-                    formatter={(value) => [formatVolume(Number(value)), 'Volume']}
-                    labelFormatter={(label) => {
-                      try {
-                        return new Date(label).toLocaleDateString();
-                      } catch {
-                        return label;
-                      }
-                    }}
-                  />
-                  <Bar dataKey="volume" fill="#6b7280" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        {/* Financials Tab */}
+        {activeTab === 'financials' && companyInfo?.financialData && (
+          <FinancialMetrics financialData={companyInfo.financialData} />
+        )}
+
+        {/* Company Tab */}
+        {activeTab === 'company' && companyInfo?.summaryProfile && (
+          <CompanyProfile profile={companyInfo.summaryProfile} />
         )}
 
         {/* Loading State */}
@@ -549,6 +481,29 @@ const StockDashboard: React.FC = () => {
               <p>No stock data available. Try searching for a stock symbol.</p>
             </div>
           </div>
+        )}
+
+        {/* Missing Data Messages */}
+        {!loading && stockData && (
+          <>
+            {activeTab === 'financials' && !companyInfo?.financialData && (
+              <div className="bg-gray-800 rounded-lg p-6">
+                <div className="text-center text-gray-400">
+                  <DollarSign className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>Financial data not available for this stock.</p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'company' && !companyInfo?.summaryProfile && (
+              <div className="bg-gray-800 rounded-lg p-6">
+                <div className="text-center text-gray-400">
+                  <Building className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>Company profile not available for this stock.</p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
